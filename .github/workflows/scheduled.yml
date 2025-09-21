@@ -1,0 +1,26 @@
+# name: Monthly Scheduled Run
+
+# on:
+#   schedule:
+#     - cron: "59 23 1 * *" # At 23:59 on the 1st of every month
+
+# jobs:
+#   run-main:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v3
+
+#       - name: Set up Python
+#         uses: actions/setup-python@v4
+#         with:
+#           python-version: 3.13
+
+#       - name: Install dependencies
+#         run: |
+#           uv install
+
+#       - name: Run main.py
+#         run: |
+#           uv run python main.py
