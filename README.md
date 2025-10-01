@@ -5,121 +5,53 @@ This is a simple script to compute the settlement of the Amherst group, consider
 ## Workflow
 1. Read the tri count settlemnt
 
-2. Re compute the money flow according to the limits (graph connection, send limit, simplify, etc)
+2. Re compute the money flow according to the limits (graph connections)
 
-3. Notify the users
+## How to use
+0. Install git and uv (Python task runner).
 
-## Mathematical Formulation of the Debt Minimization Problem
-### 1. Problem Setting
-We have a group of participants who owe money to each other after shared expenses.  
-Each participant $i$ has a **net balance** $b_i$:
+    Google it.
+1. clone this repo
+    ```
+    git clone https://github.com/hibiki-kato/Amherst_settlement.git
+    ```
+2. Create a environment using uv (uv file is included)
+    ```
+    cd Amherst_settlement
+    uv sync --locked
+    ```
+3. Create a .env file in a root directory of this repo.
+    In the .env file, write the following line:
+    ```
+    TRICOUNT_KEY=your_tricount_key
+    ```
+    `your_tricount_key` can be found in the URL of your tricount page, like `https://www.tricount.com/your_tricount_key`.
 
-- $b_i > 0$: participant $i$ must pay this amount.  
-- $b_i < 0$: participant $i$ must receive this amount.  
+4. Run the main.py using uv
+    ```
+    uv run python -O src/main.py
+    ```
 
-The balances must satisfy the feasibility condition:
-$$
-\sum_i b_i = 0.
-$$
+5. Got the settlement plan printed in the terminal.
+    ```
+    === Simple Network-Based Settlement ===
+    Balances:
+    Guillermo: 262.91
+    Matt: -95.18
+    Hibiki: 741.74
+    Gowtham: -909.47
+    Balance sum: 0.0
 
-Participants are connected through **payment channels** (e.g. Zelle, Venmo).  
-Not every pair of participants is connected, and some channels impose **capacity limits**.
+    Settlement Plan:
+    Gowtham → Hibiki: $741.74 via zelle
+    Gowtham → Matt: $167.73 via zelle
+    Matt → Guillermo: $262.91 via venmo
 
----
+    Total transaction amount: $1172.38
 
-### 2. Decision Variables
-- $x_{ij}^{c} \geq 0$: amount sent from participant $i$ to $j$ through channel $c$.  
-- $y_{ij}^{c} \in \{0,1\}$: binary variable, equals 1 if edge $(i,j)$ via channel $c$ is used.  
-
-To incorporate granularity (rounding), we enforce:
-$$
-x_{ij}^{c} = k \cdot z_{ij}^{c}, \quad z_{ij}^{c} \in \mathbb{Z}_{\geq 0},
-$$
-where $k$ is the minimal transferable unit (e.g. 1 dollar, 0.1 dollar).
-
----
-
-### 3. Constraints
-
-#### 3.1 Flow Conservation
-For each participant $i$:
-$$
-\sum_{j,c} x_{ij}^{c} - \sum_{j,c} x_{ji}^{c} = b_i.
-$$
-
-#### 3.2 Channel Connectivity
-If no edge $(i,j)$ exists in channel $c$, then:
-$$
-x_{ij}^{c} = 0.
-$$
-
-#### 3.3 Channel Capacity
-For users with daily sending limits (e.g. Zelle):
-$$
-\sum_{j} x_{ij}^{\text{Zelle}} \leq L_i,
-$$
-where $L_i$ is the limit for sender $i$.
-
-#### 3.4 Linking Constraints
-To connect continuous and binary variables:
-$$
-x_{ij}^{c} \leq M \cdot y_{ij}^{c},
-$$
-with $M$ a sufficiently large constant.
-
----
-
-### 4. Objectives (Lexicographic Optimization)
-
-1. **Stage 1: Minimize Total Transfer Amount**
-$$
-\min \; T = \sum_{i,j,c} x_{ij}^{c}.
-$$
-
-2. **Stage 2: Minimize Number of Transactions**  
-Subject to the optimal value $T^\star$ from Stage 1:
-$$
-\min \; \sum_{i,j,c} y_{ij}^{c},
-$$
-with the additional constraint:
-$$
-\sum_{i,j,c} x_{ij}^{c} = T^\star.
-$$
-
----
-
-### 5. Interpretation
-- **Stage 1** ensures money flow is globally efficient (no extra cash circulation).  
-- **Stage 2** reduces practical complexity by minimizing the number of payments.  
-- **Granularity $k$** controls the rounding:  
-  - $k = 1$ → exact dollars only.  
-  - $k = 0.1$ → amounts rounded to 10 cents.  
-
----
-
-### 6. Key Properties
-- This is a **Mixed-Integer Linear Program (MILP)**.  
-- If the graph of allowed transfers is disconnected, each connected component must satisfy $\sum_{i \in C} b_i = 0$.  
-- The model guarantees:
-  - Feasibility (flow conservation).  
-  - Practical constraints (channel limits, connectivity).  
-  - Optimality in both **amount** and **transaction count**.
-
-
-## Command log
-### Git
-```bash
-git init
-git add .
-git commit -m "initial commit"
-git remote add origin https://github.com/hibiki-kato/Amherst-settlement.git
-git branch -M main
-git push -u origin main
-```
-### uv
-```bash
-uv init .
-uv add requests pulp pytest
-```
-
-
+    Verification:
+    Guillermo: expected 262.91, actual 262.91, diff 0.000000
+    Matt: expected -95.18, actual -95.18, diff 0.000000
+    Hibiki: expected 741.74, actual 741.74, diff 0.000000
+    Gowtham: expected -909.47, actual -909.47, diff 0.000000
+    ```

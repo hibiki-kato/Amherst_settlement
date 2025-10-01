@@ -5,7 +5,9 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "cryptography>=46.0.2",
     "pulp>=3.3.0",
     "pytest>=8.4.2",
     "requests>=2.32.5",
+    "python-dotenv>=1.0.0",
 ]

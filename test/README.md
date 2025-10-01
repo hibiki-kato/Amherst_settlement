@@ -28,7 +28,7 @@ This test suite comprehensively tests the settlement optimization system with th
 - Tests violation detection
 
 ### 6. TestPrettyPrintPlan
-- Tests output formatting functions
+- Tests output forMatting functions
 - Verifies proper display of transfer plans
 
 ### 7. TestIntegrationScenarios

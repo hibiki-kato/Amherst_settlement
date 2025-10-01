@@ -1,81 +1,80 @@
 from typing import Tuple
-
-from optimization import (
-    InputData,
-    build_edges,
-    solve_stage1_min_amount,
-    solve_stage2_min_edges,
-)
-
-from utils import pretty_print_plan, print_settlement_report, check_solution
+from optimal_settlement import optimal_settle
+from tricount_read import fetch_tricount_data, get_net_from_tricount
 
 Person = str
 Channel = str
 Arc = Tuple[Person, Person]
 
-if __name__ == "__main__":
-    # ======= Hardcoded example =======
-    # Sign convention: should pay=positive, should receive=negative. Must sum to 0.
-    # Example: matt +300, hibiki +50, gowtham 0, Guillermo -350
-    balances = {
-        "matt": -900.0,
-        "hibiki": -900.0,
-        "gowtham": 1000.0,
-        "Guillermo": 800.0,
-    }
 
-    # Zelle limits (per sender) - now optional
-    zelle_caps_day = {"gowtham": 500.0, "matt": 1000.0, "hibiki": 2000.0}
-    zelle_caps_week = {"gowtham": 2200.0, "matt": 2500.0, "hibiki": 8000.0}
+def main():
+    # Fetch data and compute net balances
+    data = fetch_tricount_data()
+    balances = get_net_from_tricount(data)
 
-    # Granularity (change 1.0 → 0.1 for 10-cent precision with strict rounding)
-    k = 1.0  # dollars
-    # k = 0.1  # 10 cents
-    # k = 0.01  # 1 cent
+    # normalize names to canonical form to avoid case/whitespace mismatches
+    def _canon(name: str) -> str:
+        return name.strip().lower()
 
-    # Define Zelle and Venmo pairs
+    canon_to_display = {}
+    balances_canon = {}
+    for name, amt in balances.items():
+        c = _canon(name)
+        canon_to_display[c] = name
+        balances_canon[c] = float(amt)
+
+    print("=== Simple Network-Based Settlement ===")
+    print("Balances:")
+    for person, balance in balances.items():
+        print(f"  {person}: {balance:.2f}")
+    print(f"Balance sum: {sum(balances_canon.values())}")
+
+    # Define Zelle and Venmo pairs (display names)
     zelle_pairs = [
-        ("matt", "hibiki"),
-        ("matt", "gowtham"),
-        ("hibiki", "gowtham"),
+        ("Matt", "Hibiki"),
+        ("Matt", "Gowtham"),
+        ("Hibiki", "Gowtham"),
     ]
 
     venmo_pairs = [
-        ("Guillermo", "matt"),
+        ("Guillermo", "Matt"),
     ]
 
-    print("=== SCENARIO: Zelle Daily and Weekly Limits ===")
-    # --- Scenario considering Zelle daily and weekly limits ---
-    data_with_limits = InputData(
-        balances=balances,
-        zelle_limits=zelle_caps_day,
-        include_future_venmo=False,
-        k=k,
-        enforce_zelle_limits=True,
-        zelle_pairs=zelle_pairs,
-        venmo_pairs=venmo_pairs,
+    # Canonicalize pairs
+    zelle_pairs_canon = [(_canon(a), _canon(b)) for a, b in zelle_pairs]
+    venmo_pairs_canon = [(_canon(a), _canon(b)) for a, b in venmo_pairs]
+
+    # Use optimal settlement algorithm with canonicalized balances and pairs
+    settlement_plan = optimal_settle(
+        balances_canon, zelle_pairs_canon, venmo_pairs_canon
     )
 
-    edges = build_edges(
-        include_future_venmo=False,
-        zelle_pairs=zelle_pairs,
-        venmo_pairs=venmo_pairs,
-    )
+    print("\nSettlement Plan:")
+    total_amount = 0.0
+    for (channel, sender, receiver), amount in settlement_plan.items():
+        if amount > 0:
+            s_disp = canon_to_display.get(sender, sender)
+            r_disp = canon_to_display.get(receiver, receiver)
+            print(f"{s_disp} → {r_disp}: ${amount:.2f} via {channel}")
+            total_amount += amount
 
-    T_star, x1, E_now, V_now = solve_stage1_min_amount(data_with_limits)
-    T2, K, x2, y2 = solve_stage2_min_edges(data_with_limits, T_star, E_now, V_now)
+    print(f"\nTotal transaction amount: ${total_amount:.2f}")
 
-    print("Settlement Plan:")
-    print(pretty_print_plan(x2))
-    check_solution(x2, balances, E_now, zelle_caps_day, enforce_zelle_limits=True)
-    print_settlement_report(x2, balances, "Zelle Daily and Weekly Limits")
+    # Verify the settlement
+    net_flows = {person: 0.0 for person in balances_canon}
+    for (channel, sender, receiver), amount in settlement_plan.items():
+        if amount > 0:
+            net_flows[sender] -= amount  # Sender pays money (negative flow)
+            net_flows[receiver] += amount  # Receiver gets money (positive flow)
 
-    print("\n=== SUMMARY ===")
-    print(f"With Zelle limits:    ${T_star:.2f} (edges: {K})")
+    print("\nVerification:")
+    for canon_name, display in canon_to_display.items():
+        expected = balances_canon.get(canon_name, 0.0)
+        actual = net_flows.get(canon_name, 0.0)
+        print(
+            f"{display}: expected {expected:.2f}, actual {actual:.2f}, diff {abs(expected - actual):.6f}"
+        )
 
-    print("Balances:", balances)
-    print("Sum of balances:", sum(balances.values()))
-    print("Zelle pairs:", zelle_pairs)
-    print("Venmo pairs:", venmo_pairs)
-    print("Zelle limits:", zelle_caps_day)
-    print("Granularity (k):", k)
+
+if __name__ == "__main__":
+    main()
