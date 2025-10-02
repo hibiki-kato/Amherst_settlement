@@ -30,12 +30,12 @@ class TricountAPI:
 
         app_installation_id = str(uuid.uuid4())
 
-        # Warning message
-        warnings.warn(
-            f"No `app_id` provided. Generated new app ID: {app_installation_id}. For best practice, pass a consistent `app_id` when creating the TricountAPI instance.",
-            UserWarning,
-            stacklevel=3,
-        )
+        # # Warning message
+        # warnings.warn(
+        #     f"No `app_id` provided. Generated new app ID: {app_installation_id}. For best practice, pass a consistent `app_id` when creating the TricountAPI instance.",
+        #     UserWarning,
+        #     stacklevel=3,
+        # )
 
         return app_installation_id
 
@@ -102,7 +102,7 @@ class TricountAPI:
                 error_msg = auth_response["Error"][0]["error_description"]
                 if "Superfluous authentication" in error_msg:
                     # This shouldn't happen on first call
-                    print("Already authenticated on first call - unexpected!")
+                    # print("Already authenticated on first call - unexpected!")
                     return {"registry": []}
                 else:
                     raise ValueError(f"Authentication failed: {error_msg}")
