@@ -26,7 +26,7 @@ def main():
     print("=== Simple Network-Based Settlement ===")
     print("## Balances:")
     for person, balance in balances.items():
-        print(f"  *{person}*: ${balance:.2f}")
+        print(f"- *{person}*: ${balance:.2f}")
     # print(f"Balance sum: {sum(balances_canon.values())}")
 
     # Define Zelle and Venmo pairs (display names)
