@@ -14,7 +14,7 @@ jobs:
         run: |
           uv lock || true
           uv sync
-          uv run python main.py | tee run_output.txt
+          uv run python src/main.py | tee run_output.txt
           {
             echo "### 実行結果"
             echo '```'
