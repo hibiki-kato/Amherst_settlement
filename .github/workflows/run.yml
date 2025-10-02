@@ -8,17 +8,15 @@ jobs:
       TRICOUNT_KEY: ${{ secrets.TRICOUNT_KEY }}
     steps:
         - uses: actions/checkout@v5
-
-        - name: Install uv
         - uses: astral-sh/setup-uv@v6
 
         - name: Sync & Run
-        run: |
-          uv lock || true
-          uv sync
-          set -o pipefail
-          uv run python src/main.py 2>&1 | tee run_output.txt
-          {
-            echo "# Result"
-            cat run_output.txt
-          } >> "$GITHUB_STEP_SUMMARY"
+          run: |
+            uv lock || true
+            uv sync
+            set -o pipefail
+            uv run python src/main.py 2>&1 | tee run_output.txt
+            {
+              echo "# Result"
+              cat run_output.txt
+            } >> "$GITHUB_STEP_SUMMARY"
