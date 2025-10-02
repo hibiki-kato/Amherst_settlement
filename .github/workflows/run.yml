@@ -22,8 +22,6 @@ jobs:
           set -o pipefail
           uv run python src/main.py 2>&1 | tee run_output.txt
           {
-            echo "### 実行結果"
-            echo '```'
+            echo "# Result"
             cat run_output.txt
-            echo '```'
           } >> "$GITHUB_STEP_SUMMARY"

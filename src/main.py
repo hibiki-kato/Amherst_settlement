@@ -24,9 +24,9 @@ def main():
         balances_canon[c] = float(amt)
 
     print("=== Simple Network-Based Settlement ===")
-    print("Balances:")
+    print("## Balances:")
     for person, balance in balances.items():
-        print(f"  {person}: {balance:.2f}")
+        print(f"  *{person}*: ${balance:.2f}")
     # print(f"Balance sum: {sum(balances_canon.values())}")
 
     # Define Zelle and Venmo pairs (display names)
@@ -49,13 +49,13 @@ def main():
         balances_canon, zelle_pairs_canon, venmo_pairs_canon
     )
 
-    print("\nSettlement Plan:")
+    print("\n ## Settlement Plan:")
     total_amount = 0.0
     for (channel, sender, receiver), amount in settlement_plan.items():
         if amount > 0:
             s_disp = canon_to_display.get(sender, sender)
             r_disp = canon_to_display.get(receiver, receiver)
-            print(f"{s_disp} → {r_disp}: ${amount:.2f} via {channel}")
+            print(f"- *{s_disp}* → *{r_disp}*: ${amount:.2f} ({channel})")
             total_amount += amount
 
     print(f"\nTotal transaction amount: ${total_amount:.2f}")
