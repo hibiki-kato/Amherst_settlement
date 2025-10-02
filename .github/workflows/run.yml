@@ -7,15 +7,12 @@ jobs:
     env:
       TRICOUNT_KEY: ${{ secrets.TRICOUNT_KEY }}
     steps:
-      - uses: actions/checkout@v4
+        - uses: actions/checkout@v5
 
-      - name: Install uv
-        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+        - name: Install uv
+        uses: astral-sh/setup-uv@v6
 
-      - name: Add uv to PATH
-        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - name: Sync & Run
+        - name: Sync & Run
         run: |
           uv lock || true
           uv sync
