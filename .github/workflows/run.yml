@@ -1,0 +1,23 @@
+name: Run
+on: workflow_dispatch
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Sync & Run
+        env:
+          PATH: ~/.local/bin:${{ env.PATH }}
+        run: |
+          uv lock || true
+          uv sync
+          uv run python main.py | tee run_output.txt
+          {
+            echo "### 実行結果"
+            echo '```'
+            cat run_output.txt
+            echo '```'
+          } >> $GITHUB_STEP_SUMMARY

@@ -27,7 +27,7 @@ def main():
     print("Balances:")
     for person, balance in balances.items():
         print(f"  {person}: {balance:.2f}")
-    print(f"Balance sum: {sum(balances_canon.values())}")
+    # print(f"Balance sum: {sum(balances_canon.values())}")
 
     # Define Zelle and Venmo pairs (display names)
     zelle_pairs = [
@@ -67,13 +67,13 @@ def main():
             net_flows[sender] -= amount  # Sender pays money (negative flow)
             net_flows[receiver] += amount  # Receiver gets money (positive flow)
 
-    print("\nVerification:")
+    # print("\nVerification:")
     for canon_name, display in canon_to_display.items():
         expected = balances_canon.get(canon_name, 0.0)
         actual = net_flows.get(canon_name, 0.0)
-        print(
-            f"{display}: expected {expected:.2f}, actual {actual:.2f}, diff {abs(expected - actual):.6f}"
-        )
+        # print(
+        #     f"{display}: expected {expected:.2f}, actual {actual:.2f}, diff {abs(expected - actual):.6f}"
+        # )
 
 
 if __name__ == "__main__":
