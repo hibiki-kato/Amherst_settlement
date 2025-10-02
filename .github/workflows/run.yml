@@ -4,20 +4,26 @@ on: workflow_dispatch
 jobs:
   run:
     runs-on: ubuntu-latest
+    env:
+      TRICOUNT_KEY: ${{ secrets.TRICOUNT_KEY }}
     steps:
       - uses: actions/checkout@v4
+
       - name: Install uv
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Add uv to PATH
+        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+
       - name: Sync & Run
-        env:
-          PATH: ~/.local/bin:${{ env.PATH }}
         run: |
           uv lock || true
           uv sync
-          uv run python src/main.py | tee run_output.txt
+          set -o pipefail
+          uv run python src/main.py 2>&1 | tee run_output.txt
           {
             echo "### 実行結果"
             echo '```'
             cat run_output.txt
             echo '```'
-          } >> $GITHUB_STEP_SUMMARY
+          } >> "$GITHUB_STEP_SUMMARY"
