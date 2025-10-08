@@ -1,130 +1,148 @@
-from typing import Dict, List, Tuple
-from collections import defaultdict, deque
+from typing import Dict, List, Tuple, Optional
+import heapq
 
 Person = str
 Channel = str
-
-
-def _components(graph: Dict[str, set]) -> List[set]:
-    seen = set()
-    comps = []
-    for n in graph:
-        if n in seen:
-            continue
-        q = deque([n])
-        comp = set()
-        while q:
-            u = q.popleft()
-            if u in comp:
-                continue
-            comp.add(u)
-            seen.add(u)
-            for v in graph.get(u, []):
-                if v not in comp:
-                    q.append(v)
-        comps.append(comp)
-    return comps
-
-
-def find_shortest_path(graph: Dict[str, set], start: str, end: str) -> List[str]:
-    """Find shortest path between two nodes using BFS."""
-    if start == end:
-        return [start]
-    queue = deque([(start, [start])])
-    visited = {start}
-    while queue:
-        node, path = queue.popleft()
-        for neighbor in graph.get(node, ()):  # safe get
-            if neighbor == end:
-                return path + [neighbor]
-            if neighbor not in visited:
-                visited.add(neighbor)
-                queue.append((neighbor, path + [neighbor]))
-    return None
+Arc = Tuple[Person, Person]
+PlanKey = Tuple[Channel, Person, Person]
 
 
 def optimal_settle(
     balances: Dict[Person, float],
-    zelle_pairs: List[Tuple[str, str]],
-    venmo_pairs: List[Tuple[str, str]],
-) -> Dict[Tuple[str, str, str], float]:
-    """
-    Greedy pairing by component: repeatedly match largest debtor with largest creditor,
-    route payment along shortest path and aggregate flows. This tends to minimize number
-    of transactions versus per-payee collection.
-    """
-    graph = defaultdict(set)
-    edge_channels = {}
-    nodes = set(balances.keys())
+    zelle_pairs: List[Arc],
+    venmo_pairs: List[Arc],
+) -> Dict[PlanKey, float]:
+    # 合計は0
+    if abs(sum(balances.values())) > 1e-6:
+        raise ValueError("Balances must sum to 0")
 
-    for u, v in zelle_pairs:
-        graph[u].add(v)
-        graph[v].add(u)
-        edge_channels[(u, v)] = "zelle"
-        edge_channels[(v, u)] = "zelle"
-        nodes.update([u, v])
+    nodes = sorted(balances.keys())
 
-    for u, v in venmo_pairs:
-        graph[u].add(v)
-        graph[v].add(u)
-        edge_channels[(u, v)] = "venmo"
-        edge_channels[(v, u)] = "venmo"
-        nodes.update([u, v])
-
-    for n in list(nodes):
-        graph.setdefault(n, set())
-
-    settlement_plan: Dict[Tuple[str, str, str], float] = {}
-
-    for comp in _components(graph):
-        balances_sub = {p: balances.get(p, 0.0) for p in comp if p in balances}
-        if not balances_sub:
-            continue
-
-        total_sum = sum(balances_sub.values())
-        if abs(total_sum) < 0.1:
-            err = total_sum / len(balances_sub)
-            balances_sub = {person: bal - err for person, bal in balances_sub.items()}
-
-        payers = {person: -bal for person, bal in balances_sub.items() if bal < -1e-6}
-        payees = {person: bal for person, bal in balances_sub.items() if bal > 1e-6}
-        if not payers or not payees:
-            continue
-
-        graph_sub = {n: {m for m in graph.get(n, ()) if m in comp} for n in comp}
-
-        # greedy: match largest debtor with largest creditor
-        import heapq
-
-        payer_heap = [(-amt, person) for person, amt in payers.items()]
-        payee_heap = [(-amt, person) for person, amt in payees.items()]
-        heapq.heapify(payer_heap)
-        heapq.heapify(payee_heap)
-
-        while payer_heap and payee_heap:
-            payer_amt, payer = heapq.heappop(payer_heap)
-            payee_amt, payee = heapq.heappop(payee_heap)
-            payer_amt = -payer_amt
-            payee_amt = -payee_amt
-            transfer = min(payer_amt, payee_amt)
-
-            path = find_shortest_path(graph_sub, payer, payee)
-            if not path:
+    # 無向→両向き
+    def mk_arcs(pairs: List[Arc], channel: Channel) -> List[PlanKey]:
+        out: List[PlanKey] = []
+        seen = set()
+        for a, b in pairs:
+            if a == b:
                 continue
+            for u, v in ((a, b), (b, a)):
+                k = (channel, u, v)
+                if k not in seen:
+                    out.append(k)
+                    seen.add(k)
+        return out
 
-            for i in range(len(path) - 1):
-                a, b = path[i], path[i + 1]
-                channel = edge_channels.get(
-                    (a, b), edge_channels.get((b, a), "unknown")
-                )
-                key = (channel, a, b)
-                settlement_plan[key] = settlement_plan.get(key, 0.0) + transfer
+    arcs: List[PlanKey] = mk_arcs(zelle_pairs, "zelle") + mk_arcs(venmo_pairs, "venmo")
 
-            rem_payer = payer_amt - transfer
-            rem_payee = payee_amt - transfer
-            if rem_payer > 1e-6:
-                heapq.heappush(payer_heap, (-rem_payer, payer))
-            if rem_payee > 1e-6:
-                heapq.heappush(payee_heap, (-rem_payee, payee))
+    class Edge:
+        __slots__ = ("to", "rev", "cap", "cost", "key")
 
-    return settlement_plan
+        def __init__(
+            self, to: int, rev: int, cap: float, cost: float, key: Optional[PlanKey]
+        ):
+            self.to = to
+            self.rev = rev
+            self.cap = cap
+            self.cost = cost
+            self.key = key
+
+    class MCMF:
+        def __init__(self, N: int):
+            self.g: List[List[Edge]] = [[] for _ in range(N)]
+
+        def add_edge(
+            self,
+            fr: int,
+            to: int,
+            cap: float,
+            cost: float,
+            key: Optional[PlanKey] = None,
+        ):
+            fwd = Edge(to, len(self.g[to]), cap, cost, key)
+            rev = Edge(fr, len(self.g[fr]), 0.0, -cost, None)
+            self.g[fr].append(fwd)
+            self.g[to].append(rev)
+
+        def min_cost_flow(self, s: int, t: int, max_f: float):
+            N = len(self.g)
+            INF = 1e30
+            h = [0.0] * N
+            flow = 0.0
+            key_flow: Dict[PlanKey, float] = {}
+
+            while flow + 1e-12 < max_f:
+                dist = [INF] * N
+                prev_v = [-1] * N
+                prev_e = [-1] * N
+                dist[s] = 0.0
+                pq = [(0.0, s)]
+                while pq:
+                    d, v = heapq.heappop(pq)
+                    if d > dist[v] + 1e-15:
+                        continue
+                    for i, e in enumerate(self.g[v]):
+                        if e.cap <= 1e-12:
+                            continue
+                        nd = d + e.cost + h[v] - h[e.to]
+                        if nd + 1e-15 < dist[e.to]:
+                            dist[e.to] = nd
+                            prev_v[e.to] = v
+                            prev_e[e.to] = i
+                            heapq.heappush(pq, (nd, e.to))
+
+                if dist[t] >= INF / 2:
+                    raise RuntimeError("No feasible path")
+
+                for v in range(N):
+                    if dist[v] < INF / 2:
+                        h[v] += dist[v]
+
+                add_f = max_f - flow
+                v = t
+                while v != s:
+                    pv = prev_v[v]
+                    pe = prev_e[v]
+                    e = self.g[pv][pe]
+                    add_f = min(add_f, e.cap)
+                    v = pv
+
+                v = t
+                while v != s:
+                    pv = prev_v[v]
+                    pe = prev_e[v]
+                    e = self.g[pv][pe]
+                    re = self.g[v][e.rev]
+                    e.cap -= add_f
+                    re.cap += add_f
+                    if e.key is not None:
+                        key_flow[e.key] = key_flow.get(e.key, 0.0) + add_f
+                    v = pv
+
+                flow += add_f
+
+            return key_flow, flow
+
+    idx = {name: i for i, name in enumerate(nodes)}
+    S = len(nodes)
+    T = S + 1
+    mcmf = MCMF(T + 1)
+
+    # 1ホップ=コスト1
+    for ch, u, v in arcs:
+        if u in idx and v in idx:
+            mcmf.add_edge(idx[u], idx[v], cap=1e18, cost=1.0, key=(ch, u, v))
+
+    total_demand = 0.0
+    for n in nodes:
+        b = balances[n]
+        if b < -1e-9:  # debtor: S->n
+            mcmf.add_edge(S, idx[n], cap=(-b), cost=0.0)
+            total_demand += -b
+        elif b > 1e-9:  # creditor: n->T
+            mcmf.add_edge(idx[n], T, cap=b, cost=0.0)
+
+    flow_map, sent = mcmf.min_cost_flow(S, T, max_f=total_demand)
+    if abs(sent - total_demand) > 1e-6:
+        raise RuntimeError("Could not send all flow")
+
+    return {k: v for k, v in flow_map.items() if abs(v) > 1e-8}
